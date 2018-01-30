@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 
 	"github.com/huandu/xstrings"
 	"github.com/jroimartin/gocui"
@@ -36,6 +37,13 @@ func setCurrentViewOnTop(g *gocui.Gui, name string) (*gocui.View, error) {
 	return g.SetViewOnTop(name)
 }
 
+func selectViewHandler(viewStr string) func(*gocui.Gui, *gocui.View) error {
+	return func(g *gocui.Gui, v *gocui.View) error {
+		_, err := setCurrentViewOnTop(g, viewStr)
+		return err
+	}
+}
+
 func setRectangleView(g *gocui.Gui, name string, x int, y int) (*gocui.View, error) {
 	maxX, maxY := g.Size()
 	return g.SetView(name, maxX/2-x/2, maxY/2-y/2, maxX/2+x/2, maxY/2+y/2)
@@ -55,15 +63,11 @@ func output(g *gocui.Gui, v *gocui.View) error {
 	return nil
 }
 
-func selectViewHandler(viewStr string) func(*gocui.Gui, *gocui.View) error {
-	return func(g *gocui.Gui, v *gocui.View) error {
-		_, err := setCurrentViewOnTop(g, viewStr)
-		return err
-	}
-}
-
 func sendInsert(g *gocui.Gui, v *gocui.View) error {
 	// send text to roku
+	if str := strings.TrimSpace(v.ViewBuffer()); str != "" {
+		rokuClient.Literal(str)
+	}
 	v.Clear()
 	if err := v.SetCursor(0, 0); err != nil {
 		return err
@@ -73,7 +77,11 @@ func sendInsert(g *gocui.Gui, v *gocui.View) error {
 }
 
 func launchApp(g *gocui.Gui, v *gocui.View) error {
-	// send text to roku
+	if str := strings.TrimSpace(v.ViewBuffer()); str != "" {
+		if _, err := rokuClient.LaunchAppNameMatch(str); err != nil {
+			return err
+		}
+	}
 	v.Clear()
 	if err := v.SetCursor(0, 0); err != nil {
 		return err
@@ -140,6 +148,7 @@ func layout(g *gocui.Gui) error {
 		fmt.Fprintln(v, centerInstruct("[<(,)/>(.)]", "reverse/forward"))
 		fmt.Fprintln(v, centerInstruct("[i]", "insert text"))
 		fmt.Fprintln(v, centerInstruct("[a]", "launch app"))
+		fmt.Fprintln(v, centerInstruct("[p]", "power on/off"))
 
 		v.Title = "remote"
 
@@ -172,8 +181,12 @@ func main() {
 	setRemoteKeybindRoku(g, gocui.KeyArrowUp, "up")
 	setRemoteKeybindRoku(g, gocui.KeyEnter, "select")
 	setRemoteKeybindRoku(g, gocui.KeySpace, "play")
+	setRemoteKeybindRoku(g, gocui.KeyBackspace, "backspace")
+	setRemoteKeybindRoku(g, gocui.KeyBackspace2, "backspace")
 	setRemoteKeybindRoku(g, castRune("*"), "info")
 	setRemoteKeybindRoku(g, castRune("8"), "info")
+	setRemoteKeybindRoku(g, castRune("h"), "home")
+	setRemoteKeybindRoku(g, castRune("b"), "back")
 	setRemoteKeybindRoku(g, castRune("+"), "volume_up")
 	setRemoteKeybindRoku(g, castRune("="), "volume_up")
 	setRemoteKeybindRoku(g, castRune("-"), "volume_down")
@@ -181,6 +194,7 @@ func main() {
 	setRemoteKeybindRoku(g, castRune(","), "reverse")
 	setRemoteKeybindRoku(g, castRune(">"), "forward")
 	setRemoteKeybindRoku(g, castRune("."), "forward")
+	setRemoteKeybindRoku(g, castRune("p"), "power")
 	if err := g.SetKeybinding("remote", castRune("i"), gocui.ModNone, selectViewHandler("insert")); err != nil {
 		log.Panicln(err)
 	}

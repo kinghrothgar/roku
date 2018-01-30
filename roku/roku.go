@@ -3,6 +3,7 @@ package roku
 import (
 	"errors"
 	"fmt"
+	"net/url"
 	"strings"
 	"time"
 
@@ -31,7 +32,7 @@ var keys = map[string]string{
 	"backspace": "Backspace",
 	"search":    "Search",
 	"enter":     "Enter",
-	"literal":   "Lit",
+	//"literal":   "Lit",
 
 	// For devices that support "Find Remote"
 	"find_remote": "FindRemote",
@@ -129,6 +130,15 @@ func (r *Roku) KeyPress(k string) error {
 	return errors.New("invalid command")
 }
 
+func (r *Roku) Literal(str string) error {
+	for _, c := range str {
+		if _, err := r.RestClient.R().Post(makeURL(r.IP) + "/keypress/Lit_" + url.QueryEscape(string(c))); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // KeyPress command
 func (r *Roku) KeyDown(k string) error {
 	if kReal, ok := keys[k]; ok {
@@ -154,28 +164,28 @@ func (r *Roku) LaunchApp(id string) error {
 	return err
 }
 
-func (r *Roku) LaunchAppName(n string) error {
+func (r *Roku) LaunchAppName(n string) (string, error) {
 	as, err := r.QueryApps()
 	if err != nil {
-		return err
+		return "", err
 	}
 	for _, a := range as.Apps {
 		if n == a.Name {
-			return r.LaunchApp(a.ID)
+			return a.Name, r.LaunchApp(a.ID)
 		}
 	}
-	return errors.New("app not found")
+	return "", errors.New("app not found")
 }
 
-func (r *Roku) LaunchAppNameMatch(m string) error {
+func (r *Roku) LaunchAppNameMatch(m string) (string, error) {
 	as, err := r.QueryApps()
 	if err != nil {
-		return err
+		return "", err
 	}
 	for _, a := range as.Apps {
 		if strings.Contains(strings.ToLower(a.Name), strings.ToLower(m)) {
-			return r.LaunchApp(a.ID)
+			return a.Name, r.LaunchApp(a.ID)
 		}
 	}
-	return errors.New("app not found")
+	return "", errors.New("app not found")
 }
