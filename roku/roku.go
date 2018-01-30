@@ -4,11 +4,15 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"gopkg.in/resty.v1"
 )
 
-var port = 8060
+var (
+	port    = 8060
+	timeout = time.Duration(5 * time.Second)
+)
 
 var keys = map[string]string{
 	// Standard Keys
@@ -67,6 +71,12 @@ type Apps struct {
 	Apps []App `xml:"app"`
 }
 
+type Roku struct {
+	Apps       []App
+	IP         string
+	RestClient *resty.Client
+}
+
 func makeURL(ip string) string {
 	return fmt.Sprintf("http://%v:%v", ip, port)
 }
@@ -79,20 +89,13 @@ func getStrKeys(m map[string]string) []string {
 	return ks
 }
 
-// GetApps gets a url
-func QueryActiveApp(ip string) (*App, error) {
-	a := new(Apps)
-	_, err := resty.R().SetResult(a).Get(makeURL(ip) + "/query/active-app")
-	if len(a.Apps) != 1 {
-		return &App{}, err
+func New(ip string) *Roku {
+	restC := resty.New()
+	restC.SetTimeout(timeout)
+	return &Roku{
+		IP:         ip,
+		RestClient: restC,
 	}
-	return &a.Apps[0], err
-}
-
-func QueryApps(ip string) (*Apps, error) {
-	a := new(Apps)
-	_, err := resty.R().SetResult(a).Get(makeURL(ip) + "/query/apps")
-	return a, err
 }
 
 // GetCommands commands
@@ -100,10 +103,26 @@ func GetCommands() []string {
 	return getStrKeys(keys)
 }
 
+// GetApps gets a url
+func (r *Roku) QueryActiveApp() (*App, error) {
+	a := new(Apps)
+	_, err := r.RestClient.R().SetResult(a).Get(makeURL(r.IP) + "/query/active-app")
+	if len(a.Apps) != 1 {
+		return &App{}, err
+	}
+	return &a.Apps[0], err
+}
+
+func (r *Roku) QueryApps() (*Apps, error) {
+	a := new(Apps)
+	_, err := r.RestClient.R().SetResult(a).Get(makeURL(r.IP) + "/query/apps")
+	return a, err
+}
+
 // KeyPress command
-func KeyPress(ip string, k string) error {
+func (r *Roku) KeyPress(k string) error {
 	if kReal, ok := keys[k]; ok {
-		_, err := resty.R().Post(makeURL(ip) + "/keypress/" + kReal)
+		_, err := r.RestClient.R().Post(makeURL(r.IP) + "/keypress/" + kReal)
 		return err
 	}
 
@@ -111,9 +130,9 @@ func KeyPress(ip string, k string) error {
 }
 
 // KeyPress command
-func KeyDown(ip string, k string) error {
+func (r *Roku) KeyDown(k string) error {
 	if kReal, ok := keys[k]; ok {
-		_, err := resty.R().Post(makeURL(ip) + "/keydown/" + kReal)
+		_, err := r.RestClient.R().Post(makeURL(r.IP) + "/keydown/" + kReal)
 		return err
 	}
 
@@ -121,41 +140,41 @@ func KeyDown(ip string, k string) error {
 }
 
 // KeyPress command
-func KeyUp(ip string, k string) error {
+func (r *Roku) KeyUp(k string) error {
 	if kReal, ok := keys[k]; ok {
-		_, err := resty.R().Post(makeURL(ip) + "/keyup/" + kReal)
+		_, err := r.RestClient.R().Post(makeURL(r.IP) + "/keyup/" + kReal)
 		return err
 	}
 
 	return errors.New("invalid command")
 }
 
-func LaunchApp(ip string, id string) error {
-	_, err := resty.R().Post(makeURL(ip) + "/launch/" + id)
+func (r *Roku) LaunchApp(id string) error {
+	_, err := r.RestClient.R().Post(makeURL(r.IP) + "/launch/" + id)
 	return err
 }
 
-func LaunchAppName(ip string, n string) error {
-	as, err := QueryApps(ip)
+func (r *Roku) LaunchAppName(n string) error {
+	as, err := r.QueryApps()
 	if err != nil {
 		return err
 	}
 	for _, a := range as.Apps {
 		if n == a.Name {
-			return LaunchApp(ip, a.ID)
+			return r.LaunchApp(a.ID)
 		}
 	}
 	return errors.New("app not found")
 }
 
-func LaunchAppNameMatch(ip string, m string) error {
-	as, err := QueryApps(ip)
+func (r *Roku) LaunchAppNameMatch(m string) error {
+	as, err := r.QueryApps()
 	if err != nil {
 		return err
 	}
 	for _, a := range as.Apps {
 		if strings.Contains(strings.ToLower(a.Name), strings.ToLower(m)) {
-			return LaunchApp(ip, a.ID)
+			return r.LaunchApp(a.ID)
 		}
 	}
 	return errors.New("app not found")
