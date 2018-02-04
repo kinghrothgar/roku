@@ -1,8 +1,10 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"log"
+	"net"
 	"os"
 	"strings"
 
@@ -160,8 +162,28 @@ func layout(g *gocui.Gui) error {
 	return nil
 }
 
+func findRoku() string {
+	rokus, err := roku.FindRoku()
+	if err != nil || len(rokus) < 1 {
+		return ""
+	}
+	ip, _, _ := net.SplitHostPort(rokus[1].Host)
+	return ip
+}
+
 func main() {
-	ip = os.Getenv("ROKU")
+	ipAddr := flag.String("ip", "", "-ip=10.1.13.221")
+	flag.Parse()
+	if *ipAddr == "" {
+		if ip = os.Getenv("ROKU"); ip == "" {
+			if ip = findRoku(); ip == "" {
+				log.Fatalln("missing ip")
+			}
+		}
+	} else {
+		ip = *ipAddr
+	}
+
 	rokuClient = roku.New(ip)
 	g, err := gocui.NewGui(gocui.OutputNormal)
 	if err != nil {

@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/cloudflare/cfssl/log"
+	ssdp "github.com/koron/go-ssdp"
 	"gopkg.in/resty.v1"
 )
 
@@ -102,6 +104,28 @@ func New(ip string) *Roku {
 // GetCommands commands
 func GetCommands() []string {
 	return getStrKeys(keys)
+}
+
+// GetCommands commands
+func FindRoku() ([]*url.URL, error) {
+	list, err := ssdp.Search("roku:ecp", 5, "")
+	if err != nil {
+		log.Info("%v", err)
+		return []*url.URL{}, err
+	}
+
+	rokus := make([]*url.URL, len(list))
+	log.Info(len(list))
+	for _, srv := range list {
+		u, err := url.Parse(srv.Location)
+		if err != nil {
+			log.Info("%v", err)
+			return []*url.URL{}, err
+		}
+		rokus = append(rokus, u)
+	}
+	log.Info("%v", rokus)
+	return rokus, nil
 }
 
 // GetApps gets a url
