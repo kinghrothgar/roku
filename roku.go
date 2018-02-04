@@ -162,26 +162,33 @@ func layout(g *gocui.Gui) error {
 	return nil
 }
 
+func firstNonEmpty(ss ...string) string {
+	for _, s := range ss {
+		if len(s) > 0 {
+			return s
+		}
+	}
+	return ""
+}
+
 func findRoku() string {
 	rokus, err := roku.FindRoku()
 	if err != nil || len(rokus) < 1 {
 		return ""
 	}
-	ip, _, _ := net.SplitHostPort(rokus[1].Host)
+	ip, _, _ := net.SplitHostPort(rokus[0].Host)
 	return ip
 }
 
 func main() {
 	ipAddr := flag.String("ip", "", "-ip=10.1.13.221")
 	flag.Parse()
-	if *ipAddr == "" {
-		if ip = os.Getenv("ROKU"); ip == "" {
-			if ip = findRoku(); ip == "" {
-				log.Fatalln("missing ip")
-			}
-		}
-	} else {
-		ip = *ipAddr
+	ip = firstNonEmpty(*ipAddr, os.Getenv("ROKU"))
+	if ip == "" {
+		ip = findRoku()
+	}
+	if ip == "" {
+		log.Fatalln("missing ip")
 	}
 
 	rokuClient = roku.New(ip)
